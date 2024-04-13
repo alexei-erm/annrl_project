@@ -9,16 +9,17 @@ from training import train_critic, train_actor
 class Agent:
     def __init__(self, input_size, hidden_size=64, \
                 output_size_actor=2, output_size_critic=1, \
-                eps=0.1, gamma=0.99, lr=1e-4, K=1, device="cpu"):
+                eps=0.1, gamma=0.99, lr_actor=1e-5, lr_critic=1e-3, num_workers=1, device="cpu"):
         super().__init__()
-        self.actors = {i: Actor_network(input_size, hidden_size, output_size_actor, device) for i in range(K)}
-        self.critics = {i: Critic_network(input_size, hidden_size, output_size_critic, device) for i in range(K)}
+        self.actors = {i: Actor_network(input_size, hidden_size, output_size_actor, device) for i in range(num_workers)}
+        self.critics = {i: Critic_network(input_size, hidden_size, output_size_critic, device) for i in range(num_workers)}
         
         self.device = device
-        self.num_workers = K
+        self.num_workers = num_workers
         self.eps = eps
         self.gamma = gamma
-        self.lr = lr
+        self.lr_actor = lr_actor
+        self.lr_critic = lr_critic
 
     def select_action(self, state, worker_id, policy="greedy"):
         """
@@ -41,21 +42,21 @@ class Agent:
                 return torch.argmax(actor_output).unsqueeze(0).to(self.device)
                 # return torch.tensor(action)
 
-    def train_worker(self, batch, worker_id, gamma_, lr, device):
+    def train_worker(self, batch, worker_id, gamma_, lr_actor, lr_critic, device):
         """
         train one instance of actor and critic networks on a batch of experiences
         return: critic_loss, actor_loss
         """
-        critic_loss = train_critic(self.critics[worker_id], batch, gamma_, lr, device)
-        actor_loss = train_actor(self.critics[worker_id], self.actors[worker_id], batch, gamma_, lr, device)
+        critic_loss = train_critic(self.critics[worker_id], batch, gamma_, lr_critic, device)
+        actor_loss = train_actor(self.critics[worker_id], self.actors[worker_id], batch, gamma_, lr_actor, device)
         return critic_loss, actor_loss
     
-    def train(self, batch, gamma_, lr, device):
+    def train(self, batch, gamma_, lr_actor, lr_critic, device):
         """
         train all instances of worker networks (actors and critics) on a batch of experiences
         return: worker_losses (dictionary)
         """
         for worker_id in self.actors.keys():
             # critic_loss, actor_loss = self.train_worker(batch, worker_id, gamma_, lr)
-            worker_losses = {i: self.train_worker(batch, worker_id, gamma_, lr, device) for i in range(self.num_workers)}
+            worker_losses = {i: self.train_worker(batch, worker_id, gamma_, lr_actor, lr_critic, device) for i in range(self.num_workers)}
         return worker_losses
