@@ -6,11 +6,12 @@ import torch.nn.functional as F
 
 class Actor_network(torch.nn.Module):
     def __init__(self, input_size, hidden_size, output_size=2, device="cpu"):
+        super().__init__()
         self.network = nn.Sequential(
             nn.Linear(input_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, output_size),
-            nn.Softmax(dim=1)
+            nn.Softmax(dim=-1)
         ).to(device)
 
     def forward(self, x):
@@ -19,6 +20,7 @@ class Actor_network(torch.nn.Module):
 
 class Critic_network(torch.nn.Module):
     def __init__(self, input_size, hidden_size, output_size=1, device="cpu"):
+        super().__init__()
         self.network = nn.Sequential(
             nn.Linear(input_size, hidden_size),
             nn.ReLU(),
@@ -27,7 +29,6 @@ class Critic_network(torch.nn.Module):
 
     def forward(self, x):
         return self.network(x)
-
 
 
 

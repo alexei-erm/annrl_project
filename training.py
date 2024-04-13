@@ -4,25 +4,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def train_critic(critic, batch, gamma_, lr=1e-4):
+def train_critic(critic, batch, gamma_, lr=1e-4, device="cpu"):
     states, actions, rewards, next_states, dones = zip(*batch)
     critic_optimizer = torch.optim.Adam(critic.parameters(), lr)
 
-    states = torch.stack(states)
-    rewards = torch.tensor(rewards, dtype=torch.float)
-    next_states = torch.stack(next_states)
-    dones = torch.tensor(dones, dtype=torch.float)
+    states = torch.stack(states).to(device)
+    rewards = torch.tensor(rewards, dtype=torch.float).to(device)
+    next_states = torch.stack(next_states).to(device)
+    dones = torch.tensor(dones, dtype=torch.float).to(device)
 
     # Get V values from critic network
-    current_V_values = critic(states)
-    next_V_values = critic(next_states)
+    current_V_values = critic(states).squeeze(1)
+    next_V_values = critic(next_states).squeeze(1)
 
     # Compute the target V values (no_grad !!!!)
     with torch.no_grad():
+        # print("rewards shape:", rewards.shape, "nextVvalues shape:",next_V_values.shape, "dones shape:",dones.shape)
         target = rewards + (gamma_ * next_V_values * (1 - dones))
 
     # Compute the critic loss
-    critic_loss = F.mse_loss(current_V_values, target.detach())
+    # print("current_V_values shape:", current_V_values.shape, "target shape:", target.shape)
+    critic_loss = F.mse_loss(current_V_values, target)
 
     # Gradient descent for the critic
     critic_optimizer.zero_grad()
@@ -32,15 +34,15 @@ def train_critic(critic, batch, gamma_, lr=1e-4):
     return critic_loss.item()
 
 
-def train_actor(critic, actor, batch, gamma_, lr=1e-4):
+def train_actor(critic, actor, batch, gamma_, lr=1e-4, device="cpu"):
     states, actions, rewards, next_states, dones = zip(*batch)
     actor_optimizer = torch.optim.Adam(actor.parameters())
 
-    actions = torch.stack(actions)
-    states = torch.stack(states)
-    rewards = torch.tensor(rewards, dtype=torch.float)
-    next_states = torch.stack(next_states)
-    dones = torch.tensor(dones, dtype=torch.float)
+    actions = torch.stack(actions).to(device)
+    states = torch.stack(states).to(device)
+    rewards = torch.tensor(rewards, dtype=torch.float).to(device)
+    next_states = torch.stack(next_states).to(device)
+    dones = torch.tensor(dones, dtype=torch.float).to(device)
 
     # Get the current policy
     current_policy = actor(states)
@@ -58,11 +60,10 @@ def train_actor(critic, actor, batch, gamma_, lr=1e-4):
     log_probs = torch.log(current_policy)
 
     # Gather only the log probabilities of the taken actions
-    print(np.shape(log_probs),np.shape(actions))
     taken_log_probs = log_probs.gather(1, actions)
 
     # Compute the actor loss
-    actor_loss = -(taken_log_probs * advantage.detach()).mean()
+    actor_loss = -(taken_log_probs * advantage).mean()
 
     # Gradient descent for the actor
     actor_optimizer.zero_grad()
