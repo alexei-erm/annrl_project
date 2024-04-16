@@ -6,6 +6,7 @@ import numpy as np
 from models import Actor_network, Critic_network
 from training import train_critic, train_actor
 
+
 class Agent:
     def __init__(self, input_size, hidden_size=64, \
                 output_size_actor=2, output_size_critic=1, \
@@ -20,6 +21,7 @@ class Agent:
         self.gamma = gamma
         self.lr_actor = lr_actor
         self.lr_critic = lr_critic
+        self.num_steps = 0
 
     def select_action(self, state, worker_id, policy="greedy"):
         """
@@ -60,3 +62,19 @@ class Agent:
             # critic_loss, actor_loss = self.train_worker(batch, worker_id, gamma_, lr)
             worker_losses = {i: self.train_worker(batch, worker_id, gamma_, lr_actor, lr_critic, device) for i in range(self.num_workers)}
         return worker_losses
+    
+    def save(self, path):
+        """
+        save the agent's models
+        """
+        for worker_id in self.actors.keys():
+            torch.save(self.actors[worker_id], path + "actors.pth")
+            torch.save(self.critics[worker_id], path + "critics.pth")
+    
+    def load(self, path):
+        """
+        load the agent's models
+        """
+        for worker_id in self.actors.keys():
+            self.actors[worker_id] = torch.load(path + "actors.pth")
+            self.critics[worker_id] = torch.load(path + "critics.pth")

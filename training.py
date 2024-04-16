@@ -5,9 +5,10 @@ import torch.nn.functional as F
 
 
 def train_critic(critic, batch, gamma_, lr=1e-4, device="cpu"):
-    states, actions, rewards, next_states, dones = zip(*batch)
+    
     critic_optimizer = torch.optim.Adam(critic.parameters(), lr)
 
+    states, actions, rewards, next_states, dones = zip(*batch)
     states = torch.stack(states).to(device)
     rewards = torch.tensor(rewards, dtype=torch.float).to(device)
     next_states = torch.stack(next_states).to(device)
