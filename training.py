@@ -8,6 +8,7 @@ def train_critic(critics, batches, gamma_, lr=1e-4, device="cpu"):
     """
     trains the critic network on a batch of experiences, compatible with K workers 
     """
+    # by default run gradient descent on the first agent
     critic_optimizer = torch.optim.Adam(critics[0].parameters(), lr)
     critic_loss = 0
 
@@ -17,8 +18,10 @@ def train_critic(critics, batches, gamma_, lr=1e-4, device="cpu"):
         rewards = torch.tensor(rewards, dtype=torch.float).to(device)
         next_states = torch.stack(next_states).to(device)
         dones = torch.tensor(dones, dtype=torch.float).to(device)
+
         current_V_values = critics[worker_id](states).squeeze(1)
         next_V_values = critics[worker_id](next_states).squeeze(1)
+
         with torch.no_grad():
             target = rewards + (gamma_ * next_V_values * (1 - dones))
         critic_loss += F.mse_loss(current_V_values, target)
@@ -32,6 +35,10 @@ def train_critic(critics, batches, gamma_, lr=1e-4, device="cpu"):
 
 
 def train_actor(critics, actors, batches, gamma_, lr=1e-4, device="cpu"):
+    """
+    trains the actor network on a batch of experiences, compatible with K workers
+    """
+    # by default run gradient descent on the first agent
     actor_optimizer = torch.optim.Adam(actors[0].parameters(), lr)
     actor_loss = 0
 
@@ -53,9 +60,9 @@ def train_actor(critics, actors, batches, gamma_, lr=1e-4, device="cpu"):
         with torch.no_grad():
             target = rewards + (gamma_ * next_V_values * (1 - dones))
             advantage = target - current_V_values
-        actor_loss += -(taken_log_probs * advantage).mean()
+        actor_loss -= taken_log_probs * advantage
 
-
+    actor_loss = actor_loss.mean()
     actor_optimizer.zero_grad()
     actor_loss.backward()
     actor_optimizer.step()

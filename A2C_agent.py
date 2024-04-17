@@ -12,9 +12,13 @@ class Agent:
                 output_size_actor=2, output_size_critic=1, \
                 eps=0.1, gamma=0.99, lr_actor=1e-5, lr_critic=1e-3, num_workers=1, device="cpu"):
         super().__init__()
+        # initilialize workers, GD will run on worker 0 by default when calling train() method
         self.actors = {i: Actor_network(input_size, hidden_size, output_size_actor, device) for i in range(num_workers)}
         self.critics = {i: Critic_network(input_size, hidden_size, output_size_critic, device) for i in range(num_workers)}
-        
+        # initialize the original actor and critic networks, used once training is done for inference
+        self.actor = Actor_network(input_size, hidden_size, output_size_actor, device)
+        self.critic = Critic_network(input_size, hidden_size, output_size_critic, device)
+        # hyperparameters
         self.device = device
         self.num_workers = num_workers
         self.eps = eps
@@ -44,37 +48,38 @@ class Agent:
                 return torch.argmax(actor_output).unsqueeze(0).to(self.device)
                 # return torch.tensor(action)
 
-    def train_worker(self, batch, worker_id, gamma_, lr_actor, lr_critic, device):
+    def train(self, batch, gamma_, lr_actor, lr_critic, device):
         """
         train one instance of actor and critic networks on a batch of experiences
         return: critic_loss, actor_loss
         """
-        critic_loss = train_critic(self.critics[worker_id], batch, gamma_, lr_critic, device)
-        actor_loss = train_actor(self.critics[worker_id], self.actors[worker_id], batch, gamma_, lr_actor, device)
+        # training routine
+        critic_loss = train_critic(self.critics, batch, gamma_, lr_critic, device)
+        actor_loss = train_actor(self.critics, self.actors, batch, gamma_, lr_actor, device)
+        
+        # copy updated worker 0 into all other workers
+        state_dict_worker0_actor = self.actors[0].state_dict()
+        state_dict_worker0_critic = self.critics[0].state_dict()
+        for worker_id in range(1,self.num_workers):
+            self.actors[worker_id].load_state_dict(state_dict_worker0_actor)
+            self.critics[worker_id].load_state_dict(state_dict_worker0_critic)
+        
         return critic_loss, actor_loss
-    
-    def train(self, batch, gamma_, lr_actor, lr_critic, device):
-        """
-        train all instances of worker networks (actors and critics) on a batch of experiences
-        return: worker_losses (dictionary)
-        """
-        for worker_id in self.actors.keys():
-            # critic_loss, actor_loss = self.train_worker(batch, worker_id, gamma_, lr)
-            worker_losses = {i: self.train_worker(batch, worker_id, gamma_, lr_actor, lr_critic, device) for i in range(self.num_workers)}
-        return worker_losses
     
     def save(self, path):
         """
         save the agent's models
         """
-        for worker_id in self.actors.keys():
-            torch.save(self.actors[worker_id], path + "actors.pth")
-            torch.save(self.critics[worker_id], path + "critics.pth")
+        torch.save(self.actor, path + "actor.pth")
+        torch.save(self.critic, path + "critic.pth")
     
     def load(self, path):
         """
         load the agent's models
         """
-        for worker_id in self.actors.keys():
-            self.actors[worker_id] = torch.load(path + "actors.pth")
-            self.critics[worker_id] = torch.load(path + "critics.pth")
+        self.actor = torch.load(path + "actor.pth")
+        self.critic = torch.load(path + "critic.pth")
+
+    def training_done(self):
+        self.actor.load_state_dict(self.actors[0].state_dict())
+        self.critic.load_state_dict(self.critics[0].state_dict())
