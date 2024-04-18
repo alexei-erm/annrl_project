@@ -4,28 +4,30 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def train_critic(critic, batch, gamma_, lr=1e-4, device="cpu"):
+def train_critic(critic, experience, gamma_, lr=1e-4, device="cpu"):
     
     critic_optimizer = torch.optim.Adam(critic.parameters(), lr)
 
-    states, actions, rewards, next_states, dones = zip(*batch)
-    states = torch.stack(states).to(device)
-    rewards = torch.tensor(rewards, dtype=torch.float).to(device)
-    next_states = torch.stack(next_states).to(device)
-    dones = torch.tensor(dones, dtype=torch.float).to(device)
+    state, action, reward, next_state, terminated = experience
+    state.requires_grad_(True)
+    action = torch.tensor(action, dtype=torch.float, requires_grad=True).to(device)
+    reward = torch.tensor(reward, dtype=torch.float, requires_grad=True).to(device)
+    next_state.requires_grad_(True)
+    terminated = torch.tensor(terminated, dtype=torch.float, requires_grad=True).to(device)
 
     # Get V values from critic network
-    current_V_values = critic(states).squeeze(1)
-    next_V_values = critic(next_states).squeeze(1)
+    current_V_value = critic(state)
+    next_V_value = critic(next_state)
 
-    # Compute the target V values (no_grad !!!!)
-    with torch.no_grad():
-        # print("rewards shape:", rewards.shape, "nextVvalues shape:",next_V_values.shape, "dones shape:",dones.shape)
-        target = rewards + (gamma_ * next_V_values * (1 - dones))
+    # Compute the target V values
+    target = reward + (gamma_ * next_V_value * (1 - terminated))
 
     # Compute the critic loss
-    # print("current_V_values shape:", current_V_values.shape, "target shape:", target.shape)
-    critic_loss = F.mse_loss(current_V_values, target)
+    critic_loss = F.mse_loss(current_V_value, target.detach())
+    print(reward.requires_grad)
+    print(terminated.requires_grad)
+    print(current_V_value.requires_grad)
+    print(next_V_value.requires_grad)
 
     # Gradient descent for the critic
     critic_optimizer.zero_grad()
@@ -35,37 +37,33 @@ def train_critic(critic, batch, gamma_, lr=1e-4, device="cpu"):
     return critic_loss.item()
 
 
-def train_actor(critic, actor, batch, gamma_, lr=1e-4, device="cpu"):
-    states, actions, rewards, next_states, dones = zip(*batch)
+def train_actor(critic, actor, experience, gamma_, lr=1e-4, device="cpu"):
+    
     actor_optimizer = torch.optim.Adam(actor.parameters())
 
-    actions = torch.stack(actions).to(device)
-    states = torch.stack(states).to(device)
-    rewards = torch.tensor(rewards, dtype=torch.float).to(device)
-    next_states = torch.stack(next_states).to(device)
-    dones = torch.tensor(dones, dtype=torch.float).to(device)
+    state, action, reward, next_state, terminated = experience
+    state.requires_grad_(True)
+    action = torch.tensor(action, dtype=torch.float, requires_grad=True).to(device)
+    reward = torch.tensor(reward, dtype=torch.float, requires_grad=True).to(device)
+    next_state.requires_grad_(True)
+    terminated = torch.tensor(terminated, dtype=torch.float, requires_grad=True).to(device)
 
-    # Get the current policy
-    current_policy = actor(states)
+    # Get the current policy output FOR THE TAKEN ACTION
+    current_policy_output = actor(state)[action]
 
     # Get the V values from critic network
-    current_V_values = critic(states)
-    next_V_values = critic(next_states)
+    current_V_value = critic(state)
+    next_V_value = critic(next_state)
 
-    # Compute the target V values and advantage (no_grad !!!!)
-    with torch.no_grad():
-        target = rewards + (gamma_ * next_V_values * (1 - dones))
-        advantage = target - current_V_values
+    # Compute the target V values and advantage
+    target = reward + (gamma_ * next_V_value * (1 - terminated))
+    advantage = target.detach() - current_V_value
 
     # Compute the log probabilities of the actions
-    log_probs = torch.log(current_policy)
-
-    # Gather only the log probabilities of the taken actions
-    taken_log_probs = log_probs.gather(1, actions)
+    log_prob = torch.log(current_policy_output)
 
     # Compute the actor loss
-    actor_loss = -(taken_log_probs * advantage).mean()
-
+    actor_loss = log_prob * advantage
     # Gradient descent for the actor
     actor_optimizer.zero_grad()
     actor_loss.backward()

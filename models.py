@@ -10,6 +10,8 @@ class Actor_network(torch.nn.Module):
         self.network = nn.Sequential(
             nn.Linear(input_size, hidden_size),
             nn.Tanh(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.Tanh(),
             nn.Linear(hidden_size, output_size),
             nn.Softmax(dim=-1)
         ).to(device)
@@ -23,6 +25,8 @@ class Critic_network(torch.nn.Module):
         super().__init__()
         self.network = nn.Sequential(
             nn.Linear(input_size, hidden_size),
+            nn.Tanh(),
+            nn.Linear(hidden_size, hidden_size),
             nn.Tanh(),
             nn.Linear(hidden_size, output_size)
         ).to(device)

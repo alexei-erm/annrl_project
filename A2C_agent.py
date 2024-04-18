@@ -12,9 +12,14 @@ class Agent:
                 output_size_actor=2, output_size_critic=1, \
                 eps=0.1, gamma=0.99, lr_actor=1e-5, lr_critic=1e-3, num_workers=1, device="cpu"):
         super().__init__()
-        self.actors = {i: Actor_network(input_size, hidden_size, output_size_actor, device) for i in range(num_workers)}
-        self.critics = {i: Critic_network(input_size, hidden_size, output_size_critic, device) for i in range(num_workers)}
-        
+        self.actor = Actor_network(input_size, hidden_size, output_size_actor, device)
+        self.critic = Critic_network(input_size, hidden_size, output_size_critic, device)
+        for param in self.actor.parameters():
+            param.requires_grad = True
+
+        for param in self.critic.parameters():
+            param.requires_grad = True
+
         self.device = device
         self.num_workers = num_workers
         self.eps = eps
@@ -23,15 +28,14 @@ class Agent:
         self.lr_critic = lr_critic
         self.num_steps = 0
 
-    def select_action(self, state, worker_id, policy="greedy"):
+    def select_action(self, state, policy="greedy"):
         """
         make a specified worker select an action given the state and policy
         return: action
         """
-        actor_output = self.actors[worker_id].forward(state)
-        
+        actor_output = self.actor.forward(state)
         if policy == "greedy":
-            return torch.argmax(actor_output).unsqueeze(0).to(self.device)
+            return torch.argmax(actor_output)
             # return torch.tensor(action)
         
         elif policy == "eps-greedy":
@@ -41,40 +45,29 @@ class Agent:
             
             # exploitation (1-eps)
             else:    
-                return torch.argmax(actor_output).unsqueeze(0).to(self.device)
+                return torch.argmax(actor_output)
                 # return torch.tensor(action)
 
-    def train_worker(self, batch, worker_id, gamma_, lr_actor, lr_critic, device):
+    def train(self, experience, gamma_, lr_actor, lr_critic, device):
         """
         train one instance of actor and critic networks on a batch of experiences
         return: critic_loss, actor_loss
         """
-        critic_loss = train_critic(self.critics[worker_id], batch, gamma_, lr_critic, device)
-        actor_loss = train_actor(self.critics[worker_id], self.actors[worker_id], batch, gamma_, lr_actor, device)
+        critic_loss = train_critic(self.critic, experience, gamma_, lr_critic, device)
+        actor_loss = train_actor(self.critic, self.actor, experience, gamma_, lr_actor, device)
         return critic_loss, actor_loss
-    
-    def train(self, batch, gamma_, lr_actor, lr_critic, device):
-        """
-        train all instances of worker networks (actors and critics) on a batch of experiences
-        return: worker_losses (dictionary)
-        """
-        for worker_id in self.actors.keys():
-            # critic_loss, actor_loss = self.train_worker(batch, worker_id, gamma_, lr)
-            worker_losses = {i: self.train_worker(batch, worker_id, gamma_, lr_actor, lr_critic, device) for i in range(self.num_workers)}
-        return worker_losses
-    
+
+
     def save(self, path):
         """
         save the agent's models
         """
-        for worker_id in self.actors.keys():
-            torch.save(self.actors[worker_id], path + "actors.pth")
-            torch.save(self.critics[worker_id], path + "critics.pth")
-    
+        torch.save(self.actor, path + "actor.pth")
+        torch.save(self.critic, path + "critic.pth")
+
     def load(self, path):
         """
         load the agent's models
         """
-        for worker_id in self.actors.keys():
-            self.actors[worker_id] = torch.load(path + "actors.pth")
-            self.critics[worker_id] = torch.load(path + "critics.pth")
+        self.actor = torch.load(path + "actor.pth")
+        self.critic = torch.load(path + "critic.pth")
