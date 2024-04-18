@@ -50,7 +50,7 @@ def train_actor(critics, actors, batches, gamma_, lr=1e-4, device="cpu"):
         next_states = torch.stack(next_states).to(device)
         dones = torch.tensor(dones, dtype=torch.float).to(device)
 
-        current_V_values = critics[worker_id](states).squeeze(1)
+        current_V_values = critics[worker_id](states).squeeze(1)  # doesn't matter which worker_id is used here to infer?
         next_V_values = critics[worker_id](next_states).squeeze(1)
 
         current_policy = actors[worker_id](states)
@@ -60,7 +60,7 @@ def train_actor(critics, actors, batches, gamma_, lr=1e-4, device="cpu"):
         with torch.no_grad():
             target = rewards + (gamma_ * next_V_values * (1 - dones))
             advantage = target - current_V_values
-        actor_loss -= taken_log_probs * advantage
+        actor_loss += taken_log_probs * advantage
 
     actor_loss = actor_loss.mean()
     actor_optimizer.zero_grad()
