@@ -4,69 +4,48 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def train_critic(critic, experience, gamma_, lr=1e-4, device="cpu"):
+def train(agent, experience):
     
-    critic_optimizer = torch.optim.Adam(critic.parameters(), lr)
+    critic_optimizer = torch.optim.Adam(agent.critic.parameters(), agent.lr_critic)
+    actor_optimizer = torch.optim.Adam(agent.actor.parameters(), agent.lr_actor)
 
     state, action, reward, next_state, terminated = experience
-    state.requires_grad_(True)
-    action = torch.tensor(action, dtype=torch.float, requires_grad=True).to(device)
-    reward = torch.tensor(reward, dtype=torch.float, requires_grad=True).to(device)
-    next_state.requires_grad_(True)
-    terminated = torch.tensor(terminated, dtype=torch.float, requires_grad=True).to(device)
+    reward = torch.tensor(reward, dtype=torch.float).to(agent.device)
+    terminated = torch.tensor(terminated, dtype=torch.float).to(agent.device)
+    
+    # Ensure that action is a 1D tensor
+    if action.dim() == 0:
+        action = action.unsqueeze(0)
 
-    # Get V values from critic network
-    current_V_value = critic(state)
-    next_V_value = critic(next_state)
+    # Get the current policy output 
+    current_policy_output = agent.actor(state).unsqueeze(0)  # Ensure that current_policy_output is a 2D tensor
+    taken_action_prob = current_policy_output.gather(1, action.unsqueeze(-1))
 
-    # Compute the target V values
-    target = reward + (gamma_ * next_V_value * (1 - terminated))
+    # Get the V values from critic network
+    current_V_value = agent.critic(state)
+    next_V_value = agent.critic(next_state)
 
-    # Compute the critic loss
-    critic_loss = F.mse_loss(current_V_value, target.detach())
-    print(reward.requires_grad)
-    print(terminated.requires_grad)
-    print(current_V_value.requires_grad)
-    print(next_V_value.requires_grad)
+    # Compute the target V values and advantage
+    # with torch.no_grad():
+    #     target = reward + agent.gamma * next_V_value * (1 - terminated)
+    target = reward + agent.gamma * next_V_value.detach() * (1 - terminated)
+    advantage = target - current_V_value
+    # Compute the log probability of the action
+    log_prob = torch.log(taken_action_prob)
+
+    # Compute the losses
+    actor_loss = -log_prob * advantage
+    critic_loss = 0.5 * advantage.pow(2)
+
+    # Gradient descent for the actor
+    actor_optimizer.zero_grad()
+    actor_loss.backward(retain_graph=True)
+    actor_optimizer.step()
 
     # Gradient descent for the critic
     critic_optimizer.zero_grad()
     critic_loss.backward()
     critic_optimizer.step()
 
-    return critic_loss.item()
+    return actor_loss.item(), critic_loss.item()
 
-
-def train_actor(critic, actor, experience, gamma_, lr=1e-4, device="cpu"):
-    
-    actor_optimizer = torch.optim.Adam(actor.parameters())
-
-    state, action, reward, next_state, terminated = experience
-    state.requires_grad_(True)
-    action = torch.tensor(action, dtype=torch.float, requires_grad=True).to(device)
-    reward = torch.tensor(reward, dtype=torch.float, requires_grad=True).to(device)
-    next_state.requires_grad_(True)
-    terminated = torch.tensor(terminated, dtype=torch.float, requires_grad=True).to(device)
-
-    # Get the current policy output FOR THE TAKEN ACTION
-    current_policy_output = actor(state)[action]
-
-    # Get the V values from critic network
-    current_V_value = critic(state)
-    next_V_value = critic(next_state)
-
-    # Compute the target V values and advantage
-    target = reward + (gamma_ * next_V_value * (1 - terminated))
-    advantage = target.detach() - current_V_value
-
-    # Compute the log probabilities of the actions
-    log_prob = torch.log(current_policy_output)
-
-    # Compute the actor loss
-    actor_loss = log_prob * advantage
-    # Gradient descent for the actor
-    actor_optimizer.zero_grad()
-    actor_loss.backward()
-    actor_optimizer.step()
-
-    return actor_loss.item()
