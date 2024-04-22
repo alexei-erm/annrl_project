@@ -4,10 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def train(agent, experience):
-    
-    actor_optimizer = torch.optim.Adam(agent.actor.parameters(), agent.lr_actor)
-    critic_optimizer = torch.optim.Adam(agent.critic.parameters(), agent.lr_critic)
+def train(agent, actor_optimizer, critic_optimizer, experience):
 
     state, action, reward, next_state, terminated = experience
     reward = torch.tensor(reward, dtype=torch.float).to(agent.device)
@@ -26,25 +23,24 @@ def train(agent, experience):
     next_V_value = agent.critic(next_state)
 
     # Compute the target and advantage
-    target = reward + agent.gamma * next_V_value * (1 - terminated)
-    advantage = target - current_V_value
-    
+    # target = reward + agent.gamma * next_V_value * (1 - terminated)
+    # advantage = target - current_V_value
+    advantage = reward + (1-terminated)*agent.gamma*agent.critic(next_state) - agent.critic(state)
     # Compute the log probability of the action
     log_prob = torch.log(taken_action_prob)
 
-    # Compute the losses
-    actor_loss = -(log_prob * advantage.detach())
-    critic_loss = 0.5 * advantage.pow(2)
-
-    # Gradient descent for the actor
-    actor_optimizer.zero_grad()
-    actor_loss.backward(retain_graph=True)
-    actor_optimizer.step()
-
     # Gradient descent for the critic
+    critic_loss = 0.5*advantage.pow(2).mean()
     critic_optimizer.zero_grad()
     critic_loss.backward()
     critic_optimizer.step()
+
+    # Gradient descent for the actor
+    actor_loss = -(log_prob * advantage.detach())
+    actor_optimizer.zero_grad()
+    actor_loss.backward()
+    actor_optimizer.step()
+
 
     return actor_loss.item(), critic_loss.item()
 

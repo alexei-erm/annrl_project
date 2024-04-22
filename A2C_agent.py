@@ -28,18 +28,47 @@ class Agent:
         return: action
         """
         actor_output = self.actor.forward(state)
-        
         if policy == "greedy":
-            return torch.argmax(actor_output)
-        
+            # Find the maximum value in the actor output
+            max_value = torch.max(actor_output)
+            # Find all actions that have the maximum value
+            max_actions = (actor_output == max_value).nonzero(as_tuple=True)[0]
+            # Select one of the max actions at random
+            action = max_actions[torch.randint(0, len(max_actions), (1,))]
+            return action
+
         elif policy == "eps-greedy":
             # exploration (eps)
             if np.random.rand() < self.eps: 
                 return torch.randint(0, 2, (1,)).to(self.device) # !!!!!  MAY BE CHANGED LATER ON (if action space changes)
-            
             # exploitation (1-eps)
             else:    
-                return torch.argmax(actor_output)
+                # Find the maximum value in the actor output
+                max_value = torch.max(actor_output)
+                # Find all actions that have the maximum value
+                max_actions = (actor_output == max_value).nonzero(as_tuple=True)[0]
+                # Select one of the max actions at random
+                action = max_actions[torch.randint(0, len(max_actions), (1,))]
+                return action
+
+    # def select_action(self, state, policy="greedy"):
+    #     """
+    #     select an action given the state and policy
+    #     return: action
+    #     """
+    #     actor_output = self.actor.forward(state)
+        
+    #     if policy == "greedy":
+    #         return torch.argmax(actor_output)
+        
+    #     elif policy == "eps-greedy":
+    #         # exploration (eps)
+    #         if np.random.rand() < self.eps: 
+    #             return torch.randint(0, 2, (1,)).to(self.device) # !!!!!  MAY BE CHANGED LATER ON (if action space changes)
+            
+    #         # exploitation (1-eps)
+    #         else:    
+    #             return torch.argmax(actor_output)
 
     def save(self, path):
         """

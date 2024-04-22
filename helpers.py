@@ -2,7 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import random
 
+def tensor(x): 
+    """
+    helper function to convert numpy arrays to tensors
+    """
+    return torch.from_numpy(x).float()
 
 def mps_is_available():
     """
@@ -25,6 +31,12 @@ def device_selection():
         return 'cuda'
     else:
         return 'cpu'
+
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 def run_episodes(env, agent, num_ep):
