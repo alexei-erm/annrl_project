@@ -13,7 +13,6 @@ class Actor_network(torch.nn.Module):
             nn.Linear(hidden_size, hidden_size),
             nn.Tanh(),
             nn.Linear(hidden_size, output_size),
-            nn.Softmax(dim=-1)
         ).to(device)
 
     def forward(self, x):

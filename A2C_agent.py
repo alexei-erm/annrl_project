@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions.categorical import Categorical
 import numpy as np
 import gymnasium as gym
 
@@ -10,65 +11,30 @@ from models import Actor_network, Critic_network
 class Agent:
     def __init__(self, input_size, hidden_size=64, \
                 output_size_actor=2, output_size_critic=1, \
-                eps=0.1, gamma=0.99, lr_actor=1e-5, lr_critic=1e-3, device="cpu"):
+                gamma=0.99, lr_actor=1e-5, lr_critic=1e-3, device="cpu"):
         super().__init__()
         self.actor = Actor_network(input_size, hidden_size, output_size_actor, device)
         self.critic = Critic_network(input_size, hidden_size, output_size_critic, device)
-
+        
         self.device = device
-        self.eps = eps
         self.gamma = gamma
         self.lr_actor = lr_actor
         self.lr_critic = lr_critic
         self.num_steps = 0
 
-    def select_action(self, state, policy="greedy"):
+    def select_action(self, state, mode="evaluation"):
         """
-        select an action given the state and policy
+        select an action given the state and policy, in evaluation or learning mode
         return: action
         """
-        actor_output = self.actor.forward(state)
-        if policy == "greedy":
-            # Find the maximum value in the actor output
-            max_value = torch.max(actor_output)
-            # Find all actions that have the maximum value
-            max_actions = (actor_output == max_value).nonzero(as_tuple=True)[0]
-            # Select one of the max actions at random
-            action = max_actions[torch.randint(0, len(max_actions), (1,))]
-            return action
+        logits = self.actor(state)
+        probs = Categorical(logits=logits)
+        if mode == "learning":
+            action = probs.sample()
+        else:
+            action = torch.argmax(probs.probs)
+        return action
 
-        elif policy == "eps-greedy":
-            # exploration (eps)
-            if np.random.rand() < self.eps: 
-                return torch.randint(0, 2, (1,)).to(self.device) # !!!!!  MAY BE CHANGED LATER ON (if action space changes)
-            # exploitation (1-eps)
-            else:    
-                # Find the maximum value in the actor output
-                max_value = torch.max(actor_output)
-                # Find all actions that have the maximum value
-                max_actions = (actor_output == max_value).nonzero(as_tuple=True)[0]
-                # Select one of the max actions at random
-                action = max_actions[torch.randint(0, len(max_actions), (1,))]
-                return action
-
-    # def select_action(self, state, policy="greedy"):
-    #     """
-    #     select an action given the state and policy
-    #     return: action
-    #     """
-    #     actor_output = self.actor.forward(state)
-        
-    #     if policy == "greedy":
-    #         return torch.argmax(actor_output)
-        
-    #     elif policy == "eps-greedy":
-    #         # exploration (eps)
-    #         if np.random.rand() < self.eps: 
-    #             return torch.randint(0, 2, (1,)).to(self.device) # !!!!!  MAY BE CHANGED LATER ON (if action space changes)
-            
-    #         # exploitation (1-eps)
-    #         else:    
-    #             return torch.argmax(actor_output)
 
     def save(self, path):
         """
@@ -94,12 +60,13 @@ class Agent:
         test_env = gym.make("CartPole-v1")
         for _ in range(num_episodes):
             value_trajectory = []
-            state, _ = test_env.reset()
+            reset_seed = np.random.randint(0, 1000000)
+            state, _ = test_env.reset(seed=reset_seed)
             state = torch.from_numpy(state).float().to(self.device)  # Convert state to a tensor
             done = False
             episode_reward = 0
             while not done:
-                action = self.select_action(state, policy="greedy")
+                action = self.select_action(state, mode="evaluation")
                 value = self.critic(state)
                 value_trajectory.append(value)
                 next_state, reward, terminated, truncated, _ = test_env.step(action.item())
