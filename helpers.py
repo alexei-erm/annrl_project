@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import random
+import matplotlib.pyplot as plt
+import pandas as pd
 
 def tensor(x): 
     """
@@ -64,3 +66,46 @@ def run_episodes(env, agent, num_ep):
             agent.record(episode_reward) # to implement in agent????
 
         print(f"Episode reward after taking random actions: {episode_reward}")
+
+
+def get_stats(dict_of_lists):
+    min_values = np.min([dict_of_lists[i] for i in dict_of_lists], axis=0)
+    max_values = np.max([dict_of_lists[i] for i in dict_of_lists], axis=0)
+    avg_values = np.mean([dict_of_lists[i] for i in dict_of_lists], axis=0)
+    return min_values, max_values, avg_values
+
+
+def plot_stats(min_values, max_values, avg_values, title, ylabel='Value', xlabel='Step'):
+    plt.figure(figsize=(12, 6))
+    plt.plot(avg_values, label='Average', color='purple')
+    plt.plot(min_values, label='Min', color='violet')
+    plt.plot(max_values, label='Max', color='indigo')
+    plt.fill_between(range(len(min_values)), min_values, max_values, color='lightblue', alpha=0.5)
+    plt.legend()
+    plt.grid(True)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.show()
+
+
+def plot_smoothed_stats(min_values, max_values, avg_values, window_size, title, ylabel='Value', xlabel='Step'):
+    plt.figure(figsize=(12, 6))
+    steps = list(range(len(avg_values)))  # Create a list of steps
+
+    # Convert lists to pandas Series for smoothing
+    min_values_pd = pd.Series(min_values).rolling(window=window_size).mean()
+    max_values_pd = pd.Series(max_values).rolling(window=window_size).mean()
+    avg_values_pd = pd.Series(avg_values).rolling(window=window_size).mean()
+
+    plt.plot(steps, avg_values_pd, label='Average', color='purple')
+    plt.plot(steps, min_values_pd, label='Min', color='violet')
+    plt.plot(steps, max_values_pd, label='Max', color='indigo')
+    plt.fill_between(steps, min_values_pd, max_values_pd, color='lightblue', alpha=0.5)
+    plt.legend()
+    plt.grid(True)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.show()
+
