@@ -23,7 +23,6 @@ def train(agent, actor_optimizer, critic_optimizer, experience):
 
     # Compute the advantage
     advantage = reward + (1-terminated)*agent.gamma*next_V_value - current_V_value
-    # advantage = reward + agent.gamma*next_V_value - current_V_value # incorrect bootstrapping
 
     # Gradient descent for the critic
     critic_loss = advantage.pow(2).mean()
