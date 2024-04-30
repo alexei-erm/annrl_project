@@ -58,7 +58,7 @@ def train_batch(agent, actor_optimizer, critic_optimizer, batch):
     # Get the log policy for taken action from actor
     logits = agent.actor.forward(states)
     probs = Categorical(logits=logits)
-    log_prob = probs.log_prob(actions)
+    log_probs = probs.log_prob(actions)
     
     # Compute the n, (n-1), ...-step targets
     targets = []
@@ -70,17 +70,17 @@ def train_batch(agent, actor_optimizer, critic_optimizer, batch):
         target += next_V_value*(1-terminated[t])*gamma_**(t+1)
         targets.append(target)
     targets = torch.stack(targets)
-    target = targets.mean()
-    advantage = (target - current_V_values).mean()
-
+    advantage = targets - current_V_values.flip([0])
+    
     # Gradient descent for the critic
-    critic_loss = advantage.pow(2).mean()
+    critic_loss = advantage.pow(2).sum()
     critic_optimizer.zero_grad()
     critic_loss.backward()
     critic_optimizer.step()
 
     # Gradient descent for the actor
-    actor_loss = -(log_prob[0] * advantage.detach())
+    # actor_loss = -(log_prob[0] * advantage.detach())
+    actor_loss = - (log_probs * advantage.detach()).sum()
     actor_optimizer.zero_grad()
     actor_loss.backward()
     actor_optimizer.step()
