@@ -22,7 +22,7 @@ def train(agent, actor_optimizer, critic_optimizer, experience):
     log_prob = probs.log_prob(action)
 
     # Compute the advantage
-    advantage = reward + (1-terminated)*agent.gamma*next_V_value - current_V_value
+    advantage = reward + (1-terminated)*agent.gamma*next_V_value.detach() - current_V_value
 
     # Gradient descent for the critic
     critic_loss = advantage.pow(2).mean()
