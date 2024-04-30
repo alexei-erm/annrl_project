@@ -73,14 +73,14 @@ def train_batch(agent, actor_optimizer, critic_optimizer, batch):
     advantage = targets - current_V_values.flip([0])
     
     # Gradient descent for the critic
-    critic_loss = advantage.pow(2).sum()
+    critic_loss = advantage.pow(2).mean()
     critic_optimizer.zero_grad()
     critic_loss.backward()
     critic_optimizer.step()
 
     # Gradient descent for the actor
     # actor_loss = -(log_prob[0] * advantage.detach())
-    actor_loss = - (log_probs * advantage.detach()).sum()
+    actor_loss = - (log_probs * advantage.detach()).mean()
     actor_optimizer.zero_grad()
     actor_loss.backward()
     actor_optimizer.step()
