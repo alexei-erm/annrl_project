@@ -60,8 +60,8 @@ def train_k(agent, actor_optimizer, critic_optimizer, experiences):
     
         # Compute the advantage
         advantage = reward + (1-terminated)*agent.gamma*next_V_value - current_V_value
-        critic_loss += advantage.pow(2).mean()
-        actor_loss += -(log_prob * advantage.detach())
+        critic_loss = critic_loss + advantage.pow(2).mean()
+        actor_loss = actor_loss -(log_prob * advantage.detach())
         
 
     # Gradient descent for the critic    
