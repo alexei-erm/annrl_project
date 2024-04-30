@@ -5,6 +5,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 import pandas as pd
+import os
 
 def tensor(x): 
     """
@@ -75,7 +76,7 @@ def get_stats(dict_of_lists):
     return min_values, max_values, avg_values
 
 
-def plot_stats(min_values, max_values, avg_values, title, ylabel='Value', xlabel='Step'):
+def plot_stats(min_values, max_values, avg_values, title, ylabel='Value', xlabel='Step', save_plots=False, folder_name='default_folder'):
     plt.figure(figsize=(12, 6))
     plt.plot(avg_values, label='Average', color='purple')
     plt.plot(min_values, label='Min', color='violet')
@@ -86,10 +87,13 @@ def plot_stats(min_values, max_values, avg_values, title, ylabel='Value', xlabel
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    if save_plots:
+        os.makedirs(f'./plots/{folder_name}', exist_ok=True)
+        plt.savefig(f'./plots/{folder_name}/{title}.png')
     plt.show()
 
 
-def plot_smoothed_stats(min_values, max_values, avg_values, window_size, title, ylabel='Value', xlabel='Step'):
+def plot_smoothed_stats(min_values, max_values, avg_values, window_size, title, ylabel='Value', xlabel='Step', save_plots=False, folder_name='default_folder'):
     plt.figure(figsize=(12, 6))
     steps = list(range(len(avg_values)))  # Create a list of steps
 
@@ -107,5 +111,31 @@ def plot_smoothed_stats(min_values, max_values, avg_values, window_size, title, 
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    if save_plots:
+        os.makedirs(f'./plots/{folder_name}', exist_ok=True)
+        plt.savefig(f'./plots/{folder_name}/{title}.png')
     plt.show()
 
+
+def plot_and_save_trajectories(trajectories, save_plots=False, folder_name='default_folder', x_range=[0, 500], y_range=[0, 150]):
+    # Create the folder if it doesn't exist
+    if save_plots:
+        os.makedirs(f'./plots/{folder_name}', exist_ok=True)
+
+    for k in range(3):
+        fig, axs = plt.subplots(5, 5, figsize=(15, 15))  # Create a 5x5 grid of subplots
+
+        for i in range(5):
+            for j in range(5):
+                axs[i, j].plot(trajectories[k][5*i+j])
+                axs[i, j].set_title(f'Plot {5*i+j+1}')  # Optional: give each plot a unique title
+                axs[i, j].set_ylim(y_range)  # Set y-axis limits
+                axs[i, j].set_xlim(x_range)  # Set x-axis limits
+
+        plt.tight_layout()  # Optional: improve layout
+
+        # Save the plot if requested
+        if save_plots:
+            plt.savefig(f'./plots/{folder_name}/valtraj{k+1}.png')
+
+        plt.show()
