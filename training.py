@@ -62,16 +62,15 @@ def train_batch(agent, actor_optimizer, critic_optimizer, batch):
     
     # Compute the n, (n-1), ...-step targets
     targets = []
-    for t in range(n-1,-1,-1): # 5 to 0
-        next_V_value = next_V_values[t].squeeze()
+    for t in range(n): # 0 to 5
         target = 0
-        for i in range(t): # 0 to 4, 0 to 3, 0 to 2, ...
+        for i in range(t+1): # 0, 0 to 1, 0 to 2, 0 to 3, 0 to 4, 0 to 5
             target += (gamma_**i)*rewards[i]
-        target += next_V_value*(1-terminated[t])*gamma_**(t+1)
+        next_V_value = next_V_values[i].squeeze()
+        target += next_V_value*(1-terminated[i])*gamma_**(i+1)
         targets.append(target)
     targets = torch.stack(targets)
-    advantage = targets - current_V_values.flip([0])
-    
+    advantage = targets.detach() - current_V_values.squeeze()
     # Gradient descent for the critic
     critic_loss = advantage.pow(2).mean()
     critic_optimizer.zero_grad()

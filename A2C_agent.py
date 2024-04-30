@@ -55,7 +55,7 @@ class Agent:
             while not done:
                 action = self.select_action(state, mode="evaluation")
                 value = self.critic(state)
-                value_trajectory.append(value)
+                value_trajectory.append(value.item())
                 next_state, reward, terminated, truncated, _ = test_env.step(action.item())
                 next_state = torch.from_numpy(next_state).float().to(self.device)  # Convert next_state to a tensor
                 episode_reward += reward
