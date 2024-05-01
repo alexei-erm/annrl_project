@@ -9,13 +9,15 @@ from models import Actor_network, Critic_network
 
 
 class Agent:
-    def __init__(self, input_size, hidden_size=64, \
+    def __init__(self, k, n, input_size, hidden_size=64, \
                 output_size_actor=2, output_size_critic=1, \
                 gamma=0.99, lr_actor=1e-5, lr_critic=1e-3, device="cpu"):
         super().__init__()
         self.actor = Actor_network(input_size, hidden_size, output_size_actor, device)
         self.critic = Critic_network(input_size, hidden_size, output_size_critic, device)
         
+        self.k = k
+        self.n = n
         self.device = device
         self.gamma = gamma
         self.lr_actor = lr_actor
@@ -34,21 +36,6 @@ class Agent:
         else:
             action = torch.argmax(probs.probs)
         return action
-
-
-    def save(self, path):
-        """
-        save the agent's models
-        """
-        torch.save(self.actor, path + "actor.pth")
-        torch.save(self.critic, path + "critic.pth")
-
-    def load(self, path):
-        """
-        load the agent's models
-        """
-        self.actor = torch.load(path + "actor.pth")
-        self.critic = torch.load(path + "critic.pth")
 
     def evaluate_agent(self, num_episodes=10):
         """
