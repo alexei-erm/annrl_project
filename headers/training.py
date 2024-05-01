@@ -9,6 +9,7 @@ from A2C_agent import Agent
 from helpers import *
 
 
+
 def train(agent, actor_optimizer, critic_optimizer, batch):
 
     n = len(batch)
@@ -56,6 +57,7 @@ def train(agent, actor_optimizer, critic_optimizer, batch):
     actor_optimizer.step()
 
     return actor_loss.item(), critic_loss.item()
+
 
 
 def training_loop(seeds, total_steps_budget=500000, k=1, n=1, stochastic_rewards=False, device="cpu"):
