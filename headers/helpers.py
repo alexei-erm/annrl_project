@@ -76,7 +76,7 @@ def get_stats(dict_of_lists):
     return min_values, max_values, avg_values
 
 
-def plot_stats(min_values, max_values, avg_values, title, ylabel='Value', xlabel='Step', save_plots=False, folder_name='default_folder'):
+def plot_stats(save_plots, folder_name, min_values, max_values, avg_values, title, ylabel, xlabel):
     plt.figure(figsize=(12, 6))
     plt.plot(avg_values, label='Average', color='purple')
     plt.plot(min_values, label='Min', color='violet')
@@ -93,7 +93,7 @@ def plot_stats(min_values, max_values, avg_values, title, ylabel='Value', xlabel
     plt.show()
 
 
-def plot_smoothed_stats(min_values, max_values, avg_values, window_size, title, ylabel='Value', xlabel='Step', save_plots=False, folder_name='default_folder'):
+def plot_smoothed_stats(save_plots, folder_name, min_values, max_values, avg_values, window_size, title, ylabel, xlabel):
     plt.figure(figsize=(12, 6))
     steps = list(range(len(avg_values)))  # Create a list of steps
 
@@ -117,7 +117,7 @@ def plot_smoothed_stats(min_values, max_values, avg_values, window_size, title, 
     plt.show()
 
 
-def plot_and_save_trajectories(trajectories, save_plots=False, folder_name='default_folder', x_range=[0, 500], y_range=[0, 150]):
+def plot_and_save_trajectories(save_plots, folder_name, trajectories, x_range=[0, 500], y_range=[0, 150]):
     # Create the folder if it doesn't exist
     if save_plots:
         os.makedirs(f'./plots/{folder_name}', exist_ok=True)
