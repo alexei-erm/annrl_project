@@ -112,7 +112,6 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
         critic_losses = []
         actor_losses = []
         episode_rewards = []
-        taken_actions = []
 
         batch = []
 
@@ -135,7 +134,6 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
                     taken_action = np.array([action.detach().item()])
                 else:
                     taken_action = action.detach().item()
-                taken_actions.append(taken_action)
                 # print(taken_action[0], agent.actor.log_std.exp().item())
                 # print(agent.actor.forward(state).item())
                 next_state, reward, terminated, truncated, _ = env.step(taken_action)
@@ -193,7 +191,7 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
         agent3[i] = agent # record the agent
         env.close()
     
-    return taken_actions, agent3, all_critic_losses, all_actor_losses, all_episode_rewards, all_evaluation_reward_means, all_evaluation_reward_stds, all_evaluation_value_trajectories
+    return agent3, all_critic_losses, all_actor_losses, all_episode_rewards, all_evaluation_reward_means, all_evaluation_reward_stds, all_evaluation_value_trajectories
 
 
 # old train function for vanilla A2C
