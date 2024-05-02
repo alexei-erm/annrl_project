@@ -112,6 +112,7 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
         critic_losses = []
         actor_losses = []
         episode_rewards = []
+        taken_actions = []
 
         batch = []
 
@@ -130,7 +131,14 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
             # Run an episode
             while not done:
                 action, log_probs = agent.select_action(state, mode="learning")
-                next_state, reward, terminated, truncated, _ = env.step(np.array([action.detach().item()]))
+                if continuous:
+                    taken_action = np.array([action.detach().item()])
+                else:
+                    taken_action = action.detach().item()
+                taken_actions.append(taken_action)
+                # print(taken_action[0], agent.actor.log_std.exp().item())
+                # print(agent.actor.forward(state).item())
+                next_state, reward, terminated, truncated, _ = env.step(taken_action)
                 agent.num_steps += 1
                 next_state = tensor(next_state).to(device)  # Convert next_state to a tensor
                 done = terminated or truncated
@@ -154,14 +162,14 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
                 state = next_state
 
                 # logging procedures
-                # if agent.num_steps % 20000 == 0: 
-                #     print(f"---- Proceeding to evaluate model {i} ... ----")
-                #     mean_reward, std_reward, value_trajectories = agent.evaluate_agent(num_episodes=10)
-                #     all_evaluation_reward_means[i].append(mean_reward)
-                #     all_evaluation_reward_stds[i].append(std_reward)
-                #     all_evaluation_value_trajectories[i].append(value_trajectories[0])
-                #     print(f"Mean reward: {mean_reward:.2f}, Std reward: {std_reward:.2f}, total steps: {agent.num_steps}")
-                #     print("----     Evaluation finished        ----")
+                if agent.num_steps % 20000 == 0: 
+                    print(f"---- Proceeding to evaluate model {i} ... ----")
+                    mean_reward, std_reward, value_trajectories = agent.evaluate_agent(num_episodes=10)
+                    all_evaluation_reward_means[i].append(mean_reward)
+                    all_evaluation_reward_stds[i].append(std_reward)
+                    all_evaluation_value_trajectories[i].append(value_trajectories[0])
+                    print(f"Mean reward: {mean_reward:.2f}, Std reward: {std_reward:.2f}, total steps: {agent.num_steps}")
+                    print("----     Evaluation finished        ----")
                 
                 if agent.num_steps % 1000 == 0:
                     all_episode_rewards[i].append(episode_rewards[-1])
@@ -182,10 +190,10 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
             
         if reached_train_budget:
             print(f"Reached total training budget of {total_steps_budget} steps ----> Stopping training at episode {episode}")
-        
         agent3[i] = agent # record the agent
         env.close()
-    return agent3, all_critic_losses, all_actor_losses, all_episode_rewards, all_evaluation_reward_means, all_evaluation_reward_stds, all_evaluation_value_trajectories
+    
+    return taken_actions, agent3, all_critic_losses, all_actor_losses, all_episode_rewards, all_evaluation_reward_means, all_evaluation_reward_stds, all_evaluation_value_trajectories
 
 
 # old train function for vanilla A2C

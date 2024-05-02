@@ -36,7 +36,7 @@ class Agent:
             sigma = torch.exp(self.actor.log_std)
             dist = Normal(mu, sigma)
             if mode == "learning":
-                action = dist.rsample()
+                action = dist.sample()
                 log_prob = dist.log_prob(action) # log_prob before clipping as required by the assignment
                 action = torch.clamp(action, -3, 3)
             else:
@@ -60,7 +60,9 @@ class Agent:
         """
         rewards = []
         value_trajectories = []
-        test_env = gym.make("CartPole-v1")
+        if self.continuous: environment = "InvertedPendulum-v4"
+        else: environment = "CartPole-v1"
+        test_env = gym.make(environment)
         for _ in range(num_episodes):
             value_trajectory = []
             reset_seed = np.random.randint(0, 1000000)
@@ -72,7 +74,11 @@ class Agent:
                 action, _ = self.select_action(state, mode="evaluation")
                 value = self.critic(state)
                 value_trajectory.append(value.item())
-                next_state, reward, terminated, truncated, _ = test_env.step(np.array([action.item()]))
+                if self.continuous:
+                    taken_action = np.array([action.detach().item()])
+                else:
+                    taken_action = action.detach().item()
+                next_state, reward, terminated, truncated, _ = test_env.step(taken_action)
                 next_state = torch.from_numpy(next_state).float().to(self.device)  # Convert next_state to a tensor
                 episode_reward += reward
                 state = next_state
