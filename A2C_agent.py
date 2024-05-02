@@ -37,10 +37,10 @@ class Agent:
             dist = Normal(mu, sigma)
             if mode == "learning":
                 action = dist.rsample()
-                log_prob = dist.log_prob(action)
+                log_prob = dist.log_prob(action) # log_prob before clipping as required by the assignment
                 action = torch.clamp(action, -3, 3)
             else:
-                action = mu
+                action = torch.clamp(mu, -3,3)
                 log_prob = None
         else:
             logits = self.actor.forward(state)
@@ -72,7 +72,7 @@ class Agent:
                 action, _ = self.select_action(state, mode="evaluation")
                 value = self.critic(state)
                 value_trajectory.append(value.item())
-                next_state, reward, terminated, truncated, _ = test_env.step(action.item())
+                next_state, reward, terminated, truncated, _ = test_env.step(np.array([action.item()]))
                 next_state = torch.from_numpy(next_state).float().to(self.device)  # Convert next_state to a tensor
                 episode_reward += reward
                 state = next_state

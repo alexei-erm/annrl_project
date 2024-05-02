@@ -14,7 +14,7 @@ class Actor_network(torch.nn.Module):
             nn.Tanh(),
             nn.Linear(hidden_size, output_size),
         ).to(device)
-        self.log_std = nn.Parameter(torch.zeros(1))
+        self.log_std = nn.Parameter(torch.zeros(1)).to(device)
 
     def forward(self, x):
         return self.network(x)
