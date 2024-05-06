@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-import itertools
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
@@ -16,8 +15,7 @@ def train(agent, actor_optimizer, critic_optimizer, batch):
 
     n = len(batch)
     gamma_ = agent.gamma
-    flattened_experiences = list(itertools.chain(*batch))
-    states, actions, log_probs, rewards, next_states, terminated = zip(*flattened_experiences)
+    states, actions, log_probs, rewards, next_states, terminated = zip(*batch)
     # Convert lists to PyTorch tensors
     states = torch.stack(states)
     actions = torch.stack(actions)
@@ -61,6 +59,13 @@ def train(agent, actor_optimizer, critic_optimizer, batch):
     actor_optimizer.step()
 
     return actor_loss.item(), critic_loss.item()
+
+
+def reset_state(env, device = 'cpu'):
+    reset_seed = np.random.randint(0, 1000000) # Random seed for resetting the environment, fixed sequence because of set_seed() call above
+    state, _ = env.reset(seed=reset_seed)
+    state = tensor(state).to(device)  # Convert state to a tensor
+    return state
 
 
 
@@ -124,85 +129,71 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
         episode = 0
         dones = [False for _ in range(k)]
 
+        # initial setting
+        states = []
+        k_rewards = []
+        for env in envs:
+            states.append(reset_state(env, device))
+            k_rewards.append(0)
+
         # Training loop
         while not reached_train_budget:            
-            states = []
-            k_rewards = []
-            for env in envs:
-                reset_seed = np.random.randint(0, 1000000) # Random seed for resetting the environment, fixed sequence because of set_seed() call above
-                state, _ = env.reset(seed=reset_seed)
-                state = tensor(state).to(device)  # Convert state to a tensor
-                states.append(state)
-                k_rewards.append(0)
+            for env_idx, env in enumerate(envs):
+                if dones[env_idx]:            
+                    states[env_idx] = reset_state(envs[env_idx], device)
+                    episode += 1
+                    episode_rewards.append(k_rewards[env_idx])
+                    if episode % 100 == 0:
+                        print(f"-------- Episode {episode} ended with reward {k_rewards[env_idx]:.2f} for model {i} --------")
+                        print(f"Actor loss: {actor_losses[-1]:.4f}, Critic loss: {critic_losses[-1]:.4f}")
+                        print(f"Total steps taken during training: {agent.num_steps}")
+                    k_rewards[env_idx] = 0
+                    dones[env_idx] = False
 
-            # Run an episode
-            while not all(dones):
-                experiences = []
-                next_states = []
-                for env_idx, state in enumerate(states):
-                    if dones[env_idx]:
-                        next_states.append(None)
-                        continue
-                    action, log_probs = agent.select_action(state, mode="learning")
-                    next_state, reward, terminated, truncated, _ = envs[env_idx].step(action.detach().item())
-                    
-                    next_state = tensor(next_state).to(device)  # Convert next_state to a tensor
-                    next_states.append(next_state)
-                    dones[env_idx] = terminated or truncated
-                    k_rewards[env_idx] += reward
-                    agent.num_steps += 1 # If k > 1, num_steps would be an total steps of K-workers.
-                    # apply stochastic mask on reward (if stochastic_rewards=True)
-                    mask = 1
-                    if stochastic_rewards and np.random.rand() < 0.9: mask = 0 # with probability 0.9 cancel out reward passed to learner
-                    reward = reward * mask
-
-                    # Add the experience to the batch
-                    experience = (state, action, log_probs, reward, next_state, terminated)
-                    experiences.append(experience)
-                batch.append(experiences)
-
-                # Train the agent when batch is full
-                if len(batch) >= agent.n or all(dones):
-                    actor_loss, critic_loss = train(agent, actor_optimizer, critic_optimizer, batch)
-                    critic_losses.append(critic_loss)
-                    actor_losses.append(actor_loss)
-                    batch = []
-
-                for env_idx, state in enumerate(states):
-                    if not dones[env_idx]:
-                        states[env_idx]=next_states[env_idx]
-
-                # logging procedures
-                if agent.num_steps >= 20000 * (len(all_evaluation_reward_means[i])+1): 
-                    print(f"---- Proceeding to evaluate model {i} ... ----")
-                    mean_reward, std_reward, value_trajectories = agent.evaluate_agent(num_episodes=10)
-                    all_evaluation_reward_means[i].append(mean_reward)
-                    all_evaluation_reward_stds[i].append(std_reward)
-                    all_evaluation_value_trajectories[i].append(value_trajectories[0])
-                    print(f"Mean reward: {mean_reward:.2f}, Std reward: {std_reward:.2f}, total steps: {agent.num_steps}")
-                    print("----     Evaluation finished        ----")
+                action, log_probs = agent.select_action(states[env_idx], mode="learning")
+                next_state, reward, terminated, truncated, _ = envs[env_idx].step(action.detach().item())
                 
-                if agent.num_steps >= 1000 * (len(all_episode_rewards[i])+1):
-                    all_episode_rewards[i].append(episode_rewards[-1])
-                    all_actor_losses[i].append(actor_losses[-1])
-                    all_critic_losses[i].append(critic_losses[-1])
+                next_state = tensor(next_state).to(device)
+                dones[env_idx] = terminated or truncated
+                k_rewards[env_idx] += reward
+                agent.num_steps += 1 # If k > 1, num_steps would be an total steps of K-workers.
+                # apply stochastic mask on reward (if stochastic_rewards=True)
+                reward = 0 if stochastic_rewards and np.random.rand() < 0.9 else reward # with probability 0.9 cancel out reward passed to learner                
 
-                if (agent.num_steps >= total_steps_budget): 
-                    reached_train_budget = True
-                    break
+                # Add the experience to the batch
+                experience = (states[env_idx], action, log_probs, reward, next_state, terminated)
+                batch.append(experience)
+                states[env_idx] = next_state
+            
+            # Train the agent when batch is full
+            if len(batch) / k >= agent.n:
+                actor_loss, critic_loss = train(agent, actor_optimizer, critic_optimizer, batch)
+                critic_losses.append(critic_loss)
+                actor_losses.append(actor_loss)
+                batch = []
+            # logging procedures
+            if agent.num_steps >= 20000 * (len(all_evaluation_reward_means[i])+1): 
+                print(f"---- Proceeding to evaluate model {i} ... ----")
+                mean_reward, std_reward, value_trajectories = agent.evaluate_agent(num_episodes=10)
+                all_evaluation_reward_means[i].append(mean_reward)
+                all_evaluation_reward_stds[i].append(std_reward)
+                all_evaluation_value_trajectories[i].append(value_trajectories[0])
+                print(f" Mean reward: {mean_reward:.2f}, Std reward: {std_reward:.2f}, total steps: {agent.num_steps}")
+                print("----     Evaluation finished        ----")
+            
+            if agent.num_steps >= 1000 * (len(all_episode_rewards[i])+1):
+                all_episode_rewards[i].append(episode_rewards[-1])
+                all_actor_losses[i].append(actor_losses[-1])
+                all_critic_losses[i].append(critic_losses[-1])
 
-            
-            dones = [False for _ in range(k)]
-            episode += 1
-            episode_reward = np.mean(k_rewards)
-            episode_rewards.append(episode_reward)
-            if episode % 100 == 0:
-                print(f"-------- Episode {episode} ended with reward {episode_reward:.2f} for model {i} --------")
-                print(f"Actor loss: {actor_losses[-1]:.4f}, Critic loss: {critic_losses[-1]:.4f}")
-                print(f"Total steps taken during training: {agent.num_steps}")
-            
+            if (agent.num_steps >= total_steps_budget): 
+                reached_train_budget = True
+                break
+                 
         if reached_train_budget:
             print(f"Reached total training budget of {total_steps_budget} steps ----> Stopping training at episode {episode}")
+        else:
+            print('Training loop was terminated by unexpected reason.')
         
         logging_agent[i] = agent # record the agent
         for env in envs:
