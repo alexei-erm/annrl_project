@@ -151,7 +151,7 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
                     dones[env_idx] = False
 
                 action, log_probs = agent.select_action(states[env_idx], mode="learning")
-                next_state, reward, terminated, truncated, _ = envs[env_idx].step(action.detach().item())
+                next_state, reward, terminated, truncated, _ = envs[env_idx].step(action.detach()) if continuous else envs[env_idx].step(action.detach().item())
                 
                 next_state = tensor(next_state).to(device)
                 dones[env_idx] = terminated or truncated
