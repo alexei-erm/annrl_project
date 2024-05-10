@@ -10,39 +10,17 @@ from A2C_agent import Agent
 from helpers import *
 
 
-
 def train(agent, actor_optimizer, critic_optimizer, batch):
-
-    gamma_ = agent.gamma
     critic_loss = []
     actor_loss = []
 
     for i in range(agent.k):
-        states, actions, log_probs, rewards, next_states, terminated = zip(*batch[i])
-        # Convert lists to PyTorch tensors
-        states = torch.stack(states)
-        actions = torch.stack(actions)
-        log_probs = torch.stack(log_probs)
-        rewards = torch.tensor(rewards, dtype=torch.float32).to(agent.device)
-        next_states = torch.stack(next_states)
-        terminated = torch.tensor(terminated, dtype=torch.float32).to(agent.device)
-
+        states, actions, log_probs, rewards, next_states, terminated = unpack_batch(agent, batch[i])
         # Get the V values from critic network
         current_V_values = agent.critic(states)
         next_V_values = agent.critic(next_states)
-        
-        # Compute the n, (n-1), ...-step targets
-        targets = []
-        for t in range(agent.n): # 0 to 5
-            target = 0
-            for i in range(t+1): # 0, 0 to 1, 0 to 2, 0 to 3, 0 to 4, 0 to 5
-                target += (gamma_**i)*rewards[i]
-            next_V_value = next_V_values[i].squeeze()
-            target += next_V_value*(1-terminated[i])*gamma_**(i+1)
-            targets.append(target)
-        targets = torch.stack(targets)
-        # compute the advantage for worker 
-        advantage = targets.detach() - current_V_values.squeeze()
+        # Compute the n-advantage for worker 
+        advantage = compute_advantage(agent, rewards, current_V_values, next_V_values, terminated)
         # compute and store losses for worker
         critic_loss.append(advantage.pow(2).mean())
         actor_loss.append(- (log_probs * advantage.detach()).mean())
@@ -63,6 +41,34 @@ def train(agent, actor_optimizer, critic_optimizer, batch):
     actor_optimizer.step()
 
     return actor_loss.item(), critic_loss.item()
+
+
+
+def unpack_batch(agent, batch):
+    states, actions, log_probs, rewards, next_states, terminated = zip(*batch)
+    # Convert lists to PyTorch tensors
+    states = torch.stack(states)
+    actions = torch.stack(actions)
+    log_probs = torch.stack(log_probs)
+    rewards = torch.tensor(rewards, dtype=torch.float32).to(agent.device)
+    next_states = torch.stack(next_states)
+    terminated = torch.tensor(terminated, dtype=torch.float32).to(agent.device)
+
+
+def compute_advantage(agent, rewards, current_V_values, next_V_values, terminated):
+    # Compute the n, (n-1), ...-step targets
+    targets = []
+    for t in range(agent.n): # 0 to 5
+        target = 0
+        for i in range(t+1): # 0, 0 to 1, 0 to 2, 0 to 3, 0 to 4, 0 to 5
+            target += (agent.gamma**i)*rewards[i]
+        next_V_value = next_V_values[i].squeeze()
+        target += next_V_value*(1-terminated[i])*agent.gamma**(i+1)
+        targets.append(target)
+    targets = torch.stack(targets)
+    # compute the advantage for worker 
+    advantage = targets.detach() - current_V_values.squeeze()
+    return advantage
 
 
 def reset_env(env, device = 'cpu'):
@@ -209,38 +215,3 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
         print(f'Experiment took {end_time-start_time:.2f}s in total.')
     return logging_agent, all_critic_losses, all_actor_losses, all_episode_rewards, all_evaluation_reward_means, all_evaluation_reward_stds, all_evaluation_value_trajectories
 
-
-# old train function for vanilla A2C
-
-# def train(agent, actor_optimizer, critic_optimizer, experience):
-
-#     state, action, reward, next_state, terminated = experience
-#     reward = torch.tensor(reward, dtype=torch.float).to(agent.device)
-#     terminated = torch.tensor(terminated, dtype=torch.float).to(agent.device)
-
-#     # Get the V values from critic network
-#     current_V_value = agent.critic(state)
-#     next_V_value = agent.critic(next_state)
-
-#     # Get the log policy for taken action from actor
-#     logits = agent.actor.forward(state)
-#     probs = Categorical(logits=logits)
-#     log_prob = probs.log_prob(action)
-
-#     # Compute the advantage
-#     advantage = reward + (1-terminated)*agent.gamma*next_V_value.detach() - current_V_value
-
-#     # Gradient descent for the critic
-#     critic_loss = advantage.pow(2).mean()
-#     critic_optimizer.zero_grad()
-#     critic_loss.backward()
-#     critic_optimizer.step()
-
-#     # Gradient descent for the actor
-#     actor_loss = -(log_prob * advantage.detach())
-#     actor_optimizer.zero_grad()
-#     actor_loss.backward()
-#     actor_optimizer.step()
-
-
-#     return actor_loss.item(), critic_loss.item()
