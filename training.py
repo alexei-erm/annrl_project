@@ -124,7 +124,7 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
 
         critic_losses = []
         actor_losses = []
-        episode_rewards = []
+        episode_rewards = [[] for _ in range(k)]
 
         batch = [[] for _ in range(k)] # batches of experiences for each worker
 
@@ -145,12 +145,12 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
             for env_idx, env in enumerate(envs):
                 if dones[env_idx]:            
                     states[env_idx] = reset_env(envs[env_idx], device)
-                    episode += 1
-                    episode_rewards.append(k_rewards[env_idx])
-                    if episode % 100 == 0:
-                        print(f"-------- Episode {episode} ended with reward {k_rewards[env_idx]:.2f} for model {i} --------")
-                        print(f"Actor loss: {actor_losses[-1]:.4f}, Critic loss: {critic_losses[-1]:.4f}")
-                        print(f"Total steps taken during training: {agent.num_steps}")
+                    # episode += 1
+                    episode_rewards[env_idx].append(k_rewards[env_idx])
+                    # if episode % 100 == 0:
+                    #     print(f"-------- Episode {episode} ended with reward {k_rewards[env_idx]:.2f} for model {i} --------")
+                    #     print(f"Actor loss: {actor_losses[-1]:.4f}, Critic loss: {critic_losses[-1]:.4f}")
+                    #     print(f"Total steps taken during training: {agent.num_steps}")
                     k_rewards[env_idx] = 0
                     dones[env_idx] = False
 
@@ -160,7 +160,8 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
                 next_state = tensor(next_state).to(device)
                 dones[env_idx] = terminated or truncated
                 k_rewards[env_idx] += reward
-                agent.num_steps += 1 # If k > 1, num_steps would be an total steps of K-workers.
+                agent.num_steps += 1 # If k > 1, num_steps would be a total steps of K-workers.
+
                 # apply stochastic mask on reward (if stochastic_rewards=True)
                 reward = 0 if stochastic_rewards and np.random.rand() < 0.9 else reward # with probability 0.9 cancel out reward passed to learner                
 
@@ -169,13 +170,13 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
                 batch[env_idx].append(experience)
                 states[env_idx] = next_state
             
-            # Train the agent when batch is full
-            # if len(batch) / k >= agent.n:
-            if all(len(batch[i]) == agent.n for i in range(k)): # check that batches are full for all workers
+            # Train the agent when batches are full
+            if all(len(batch[i]) == agent.n for i in range(k)): 
                 actor_loss, critic_loss = train(agent, actor_optimizer, critic_optimizer, batch)
                 critic_losses.append(critic_loss)
                 actor_losses.append(actor_loss)
-                batch = [[] for _ in range(k)]
+                batch = [[] for _ in range(k)] # empty batches
+            
             # logging procedures
             if agent.num_steps >= 20000 * (len(all_evaluation_reward_means[i])+1): 
                 print(f"---- Proceeding to evaluate model {i} ... ----")
@@ -187,7 +188,8 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
                 print("----     Evaluation finished        ----")
             
             if agent.num_steps >= 1000 * (len(all_episode_rewards[i])+1):
-                all_episode_rewards[i].append(episode_rewards[-1])
+                average_reward = sum(rewards[-1] for rewards in episode_rewards) / len(episode_rewards)
+                all_episode_rewards[i].append(average_reward)
                 all_actor_losses[i].append(actor_losses[-1])
                 all_critic_losses[i].append(critic_losses[-1])
 
