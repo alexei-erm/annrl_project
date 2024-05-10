@@ -65,7 +65,7 @@ def train(agent, actor_optimizer, critic_optimizer, batch):
     return actor_loss.item(), critic_loss.item()
 
 
-def reset_state(env, device = 'cpu'):
+def reset_env(env, device = 'cpu'):
     reset_seed = np.random.randint(0, 1000000) # Random seed for resetting the environment, fixed sequence because of set_seed() call above
     state, _ = env.reset(seed=reset_seed)
     state = tensor(state).to(device)  # Convert state to a tensor
@@ -137,14 +137,14 @@ def training_loop(k, n, continuous, seeds, lr_actor=1e-5, lr_critic=1e-3, total_
         states = []
         k_rewards = []
         for env in envs:
-            states.append(reset_state(env, device))
+            states.append(reset_env(env, device))
             k_rewards.append(0)
 
         # Training loop
         while not reached_train_budget:            
             for env_idx, env in enumerate(envs):
                 if dones[env_idx]:            
-                    states[env_idx] = reset_state(envs[env_idx], device)
+                    states[env_idx] = reset_env(envs[env_idx], device)
                     episode += 1
                     episode_rewards.append(k_rewards[env_idx])
                     if episode % 100 == 0:
