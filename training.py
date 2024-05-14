@@ -53,6 +53,7 @@ def unpack_batch(agent, batch):
     rewards = torch.tensor(rewards, dtype=torch.float32).to(agent.device)
     next_states = torch.stack(next_states)
     terminated = torch.tensor(terminated, dtype=torch.float32).to(agent.device)
+    return states, actions, log_probs, rewards, next_states, terminated
 
 
 def compute_advantage(agent, rewards, current_V_values, next_V_values, terminated):
