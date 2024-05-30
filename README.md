@@ -1,5 +1,6 @@
 # CS-456 - Artificial Neural Networks and Reinforcement Learning
 # Mini-project: From Discrete to Continuous Advantage Actor-Critic (A2C)
+## by Alexei Ermochkine and Hyeongdon Moon
 
 This a repository containing the necessary code to reproduce the results and plots used in the corresponding report. 
 - Use `main.ipynb` to run all experiments in one single file
